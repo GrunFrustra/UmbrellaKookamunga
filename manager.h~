@@ -1,0 +1,55 @@
+#include <vector>
+#include <SDL.h>
+#include "ioManager.h"
+#include "world.h"
+#include "viewport.h"
+#include "player.h"
+#include "hud.h"
+class Sprite;
+class MultiBullets;
+class Manager {
+public:
+  Manager ();
+  ~Manager ();
+  void play();
+
+private:
+  const bool env;
+  const IOManager& io;
+  Clock& clock;
+
+  SDL_Surface * const screen;
+  World ground;
+  World treehouse;
+  World hills;
+  World longcloud;
+  World sky;
+  Viewport& viewport;
+
+  Hud hud;
+  bool drawHud;
+
+  std::vector<Sprites*> sprites;
+  std::vector<Drawable*> sprites2;
+  std::vector<Drawable*> sprites3;
+  std::vector<MultiBullets*> bullets;
+  Player * player;
+  int currentSprite;
+  int orbCount;
+  int raindropFactor;
+
+  bool makeVideo;
+  int frameCount;
+  std::string username;
+  std::string title;
+  int frameMax;
+  float score;
+
+  int checkForCollisions() const;
+  void draw() const;
+  void update();
+
+  Manager(const Manager&);
+  Manager& operator=(const Manager&);
+  void makeFrame();
+};
