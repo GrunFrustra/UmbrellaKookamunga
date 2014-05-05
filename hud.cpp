@@ -1,0 +1,37 @@
+#include "hud.h"
+Hud::Hud() :
+ width( Gamedata::getInstance().getXmlInt("hudWidth") ),
+ height( Gamedata::getInstance().getXmlInt("hudHeight") ),
+ pos(
+   Gamedata::getInstance().getXmlInt("hudX"),
+   Gamedata::getInstance().getXmlInt("hudY")
+ ),
+ io( IOManager::getInstance() ),
+ screen( io.getScreen() ),
+ clock( Clock::getInstance() ),
+ viewport( Viewport::getInstance() ),
+ GOLD( SDL_MapRGB(screen->format, 255, 223, 0) )
+{}
+
+void Hud::draw(unsigned int raindrops) const{
+  Draw_AALine(screen, pos[0], pos[1]+height/2,
+                      pos[0]+width,pos[1]+height/2,
+                      height, 0xff, 0xff, 0xff, 0xff/1.5);
+  Draw_AALine(screen, pos[0], pos[1],
+                      pos[0]+width,pos[1], 1.0f, GOLD);
+  Draw_AALine(screen, pos[0], pos[1]+height,
+                      pos[0]+width,pos[1]+height, 1.0f, GOLD);
+  Draw_AALine(screen, pos[0], pos[1],
+                      pos[0],pos[1]+height, 2.0f, GOLD);
+  Draw_AALine(screen, pos[0]+width, pos[1],
+                      pos[0]+width, pos[1]+height, 2.0f, GOLD);
+
+
+  io.printMessageValueAt("Seconds: ", clock.getSeconds(), pos[0]+10, pos[1]+5);
+  io.printMessageValueAt("fps: ", clock.getAvgFps(), pos[0]+10, pos[1]+25);
+  io.printMessageValueAt("Raindrops: ", raindrops, pos[0]+10, pos[1]+45);
+  io.printMessageAt("Use WASD to control movement", pos[0]+10, pos[1]+65);
+  io.printMessageAt("Clouds are sending in raindrops!", pos[0]+10, pos[1]+85);
+  io.printMessageAt("Run into Raindrops to Stop Them!", pos[0]+10, pos[1]+105);
+
+}

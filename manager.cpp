@@ -1,0 +1,285 @@
+#include <iostream>
+#include <string>
+#include <iomanip>
+#include "twowaysprite.h"
+#include "multisprite.h"
+#include "sprite.h"
+#include "multibullets.h"
+#include "explodingSprite.h"
+#include "sound.h"
+#include "gamedata.h"
+#include "manager.h"
+#include "player.h"
+#include "ioManager.h"
+
+Manager::~Manager() { 
+  // These deletions eliminate "definitely lost" and
+  // "still reachable"s in Valgrind.
+  for (unsigned i = 0; i < sprites.size(); ++i) {
+    delete sprites[i];
+  }
+  for (unsigned i = 0; i < sprites2.size(); ++i) {
+    delete sprites2[i];
+  }
+  for (unsigned i = 0; i < sprites3.size(); ++i) {
+    delete sprites3[i];
+  }
+}
+
+Manager::Manager() :
+  env( SDL_putenv(const_cast<char*>("SDL_VIDEO_CENTERED=center")) ),
+  io( IOManager::getInstance() ),
+  clock( Clock::getInstance() ),
+  screen( io.getScreen() ),
+  ground("ground", Gamedata::getInstance().getXmlInt("groundFactor") ),
+  treehouse("treehouse", Gamedata::getInstance().getXmlInt("treehouseFactor") ),
+  hills("hills", Gamedata::getInstance().getXmlInt("hillsFactor") ),
+  longcloud("longcloud", Gamedata::getInstance().getXmlInt("longcloudFactor") ),
+  sky("sky", Gamedata::getInstance().getXmlInt("skyFactor") ),
+  viewport( Viewport::getInstance() ),
+  hud(),
+  drawHud( Gamedata::getInstance().getXmlBool("hudShowAtStart") ),
+  sprites(),
+  sprites2(),
+  sprites3(),
+  bullets(),
+  player( new Player("umbrella") ),
+  currentSprite(0),
+  orbCount(Gamedata::getInstance().getXmlInt("raindropCount") ),
+  raindropFactor(Gamedata::getInstance().getXmlInt("raindropFactor") ),
+  makeVideo( false ),
+  frameCount( 0 ),
+  username(  Gamedata::getInstance().getXmlStr("username") ),
+  title( Gamedata::getInstance().getXmlStr("screenTitle") ),
+  frameMax( Gamedata::getInstance().getXmlInt("frameMax") ),
+  score(100.0)
+{
+  if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+    throw string("Unable to initialize SDL: ");
+  }
+  SDL_WM_SetCaption(title.c_str(), NULL);
+  atexit(SDL_Quit);
+
+  //sprites.push_back( new Sprite("raindrop") );
+
+  
+  viewport.setObjectToTrack(player);
+  for(int i = 0; i < orbCount; i++){
+  //Sprite nOrb("raindrop", orbFrame);
+  sprites.push_back( new Sprite("raindrop") );
+  }
+  for(int i = 0; i < orbCount/3; i++){
+  //Sprite nOrb("raindrop", orbFrame);
+  sprites2.push_back( new Sprite("raindrop2") );
+  }
+  for(int i = 0; i < orbCount/3; i++){
+  //Sprite nOrb("raindrop", orbFrame);
+  sprites3.push_back( new Sprite("raindrop3") );
+  }
+  sprites2.push_back( new MultiSprite("clouds") );
+    //sprites.push_back( new MultiSprite("umbrella") );
+    //sprites.push_back( new Player("umbrella") );
+    //Player umbrella = new Player("umbrella");
+    //sprites.push_back( new TwoWaySprite("umbrellaReverse") );
+  //viewport.setObjectToTrack(sprites[currentSprite]);
+  //viewport.setObjectToTrack(sprites[sprites.size()-1]);
+}
+
+int Manager::checkForCollisions() const {
+  std::vector<Sprite*>::const_iterator sprite = sprites.begin();
+  while ( sprite != sprites.end() ) {
+    if ( player->collidedWith(*sprite) ) {
+       (*sprite)->setPosition(Vector2f(rand() % (6400 - 100 + 1) + 1, rand() % 100));
+       if( sprite == (sprites.end()-1)){ return 2; }
+       return 1;
+    }
+    ++sprite;
+  }
+  return 0;
+}
+
+void Manager::draw() const {
+  sky.draw();
+  longcloud.draw();
+  for (unsigned i = 0; i < sprites3.size(); ++i) {
+    sprites3[i]->draw();
+  }
+  hills.draw();
+  for (unsigned i = 0; i < sprites2.size(); ++i) {
+    sprites2[i]->draw();
+  }
+  treehouse.draw();
+  ground.draw();
+  for (unsigned i = 0; i < sprites.size(); ++i) {
+    sprites[i]->draw();
+  }
+
+  for (unsigned i = 0; i < bullets.size(); ++i) {
+    bullets[i]->draw();
+  }
+
+  player->draw();
+  viewport.draw();
+  if(drawHud == true){
+  hud.draw(orbCount);
+  }
+  IOManager::getInstance()
+    .printMessageValueAt("Precipitation: ", score, 10, 50);
+  if(score <= 0.0) { 
+    IOManager::getInstance().printMessageCenteredAt("Umbrella Wins!", 60);
+    IOManager::getInstance().printMessageCenteredAt("Press R to Restart!", 80);
+  }
+  if(score >= 150.0) { 
+    IOManager::getInstance().printMessageCenteredAt("Clouds Win!", 60);
+    IOManager::getInstance().printMessageCenteredAt("Press R to Restart!", 80);
+  }
+  SDL_Flip(screen);
+}
+
+void Manager::makeFrame() {
+  std::stringstream strm;
+  strm << "video/" << username<< '.' 
+       << std::setfill('0') << std::setw(4) 
+       << frameCount++ << ".bmp";
+  std::string filename( strm.str() );
+  std::cout << "Making frame: " << filename << std::endl;
+  SDL_SaveBMP(screen, filename.c_str());
+}
+
+void Manager::update() {
+  ++clock;
+  Uint32 ticks = clock.getElapsedTicks();
+  for (unsigned int i = 0; i < sprites3.size(); ++i) {
+    sprites3[i]->update(ticks);
+    
+  }
+  for (unsigned int i = 0; i < sprites2.size(); ++i) {
+    sprites2[i]->update(ticks);
+  }
+  for (unsigned int i = 0; i < sprites.size(); ++i) {
+    sprites[i]->update(ticks); //score += .01;
+    if(sprites[i]->tooFar()){ score += .05; sprites[i]->setDone(); }
+  }
+  /*for (unsigned int i = 0; i < bullets.size(); ++i) {  
+    bullets[i]->update(ticks);
+  }*/
+  std::vector<MultiBullets*>::iterator expIt=bullets.begin();
+  while( expIt != bullets.end() ) {
+   (*expIt)->update(ticks);
+   
+   //If bullet touches boundaries
+   if( (*expIt)->tooFar() ){
+     delete *expIt;
+     expIt = bullets.erase(expIt);
+   }
+
+   //
+   else ++expIt;
+  
+  }
+
+  if ( makeVideo && frameCount < frameMax ) {
+    makeFrame();
+  }
+  ground.update();
+  treehouse.update();
+  hills.update();
+  longcloud.update();
+  sky.update();
+  viewport.update(); // always update viewport last
+}
+
+
+
+void Manager::play() {
+  SDL_Event event;
+  SDLSound sound;
+  bool done = false;
+  bool keyCatch = false;
+  const Vector2f incrl(-1000.0, 0);
+  const Vector2f incrr(1000.0, 0);
+  const Vector2f incru(0, -1000.0);
+  const Vector2f incrd(0, 1000.0);
+  //bool dropExploded = false;
+  while ( not done ) {
+
+    SDL_PollEvent(&event);
+    Uint8 *keystate = SDL_GetKeyState(NULL);
+    if (event.type ==  SDL_QUIT) { done = true; break; }
+    if(event.type == SDL_KEYUP) { 
+      keyCatch = false; 
+    }
+    if(event.type == SDL_KEYDOWN) {
+      if (keystate[SDLK_ESCAPE] || keystate[SDLK_q]) {
+        done = true;
+        break;
+      }
+     if (keystate[SDLK_t] && !keyCatch) {
+        /*keyCatch = true;
+        currentSprite = (currentSprite+1) % sprites.size();
+        viewport.setObjectToTrack(sprites[currentSprite]);*/
+        //main();
+        //
+      } /*Tracker*/
+
+      if (keystate[SDLK_z && !keyCatch]) {
+        keyCatch = true;
+         if(drawHud == false){
+          Hud hud2;
+          hud2.draw(50);
+        } 
+      }
+      /*
+      if (keystate[SDLK_LEFT] && !keyCatch) {
+          keyCatch = true;
+          sound[0];
+          bullets.push_back( new MultiBullets("bullet",player->getPosition(),incrl ));
+      }
+      if (keystate[SDLK_RIGHT] && !keyCatch) {
+          keyCatch = true;
+          sound[0];
+          bullets.push_back( new MultiBullets("bullet",player->getPosition(),incrr ));
+      }
+      if (keystate[SDLK_UP] && !keyCatch) {
+          keyCatch = true;
+          sound[0];
+          bullets.push_back( new MultiBullets("bullet",player->getPosition(),incru ));
+      }
+      if (keystate[SDLK_DOWN] && !keyCatch) {
+          keyCatch = true;
+          sound[0];
+          bullets.push_back( new MultiBullets("bullet",player->getPosition(),incrd ));
+      }*/
+      if (keystate[SDLK_a] && !keyCatch) {
+        player->left(23);
+      }  
+      if (keystate[SDLK_w] && !keyCatch) {
+        player->up(23);
+      }
+      if (keystate[SDLK_d] && !keyCatch) {
+        player->right(23);
+      }
+      if (keystate[SDLK_s] && !keyCatch) {
+        player->down(23);
+      }
+        if (keystate[SDLK_r] && !keyCatch) {
+          keyCatch = true;
+          if ( clock.isPaused() ) {clock.unpause(); score = 100.0;}
+          else clock.pause();
+        }
+        if (keystate[SDLK_F4] && !makeVideo) {
+          std::cout << "Making video frames" << std::endl;
+          makeVideo = true;
+        }
+       
+    }
+    if(checkForCollisions() == 1){score -= .5; sound[0];}
+    if(score <= 0 || score >= 150) { 
+      clock.pause();
+    }
+    draw();
+    update();
+  }
+}
+
+
